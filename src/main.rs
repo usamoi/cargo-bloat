@@ -664,20 +664,26 @@ fn process_crate(args: &Args) -> Result<CrateData, Error> {
             .to_string()
     };
 
-    // The last artifact should be our binary/dylib/cdylib.
-    if let Some(artifact) = artifacts.last() {
-        if artifact.kind != ArtifactKind::Library {
-            let section_name = args.symbols_section.as_deref().unwrap_or(".text");
-            return Ok(CrateData {
-                exe_path: Some(prepare_path(&artifact.path)),
-                data: collect_self_data(&artifact.path, section_name)?,
-                std_crates,
-                dep_crates,
-                deps_symbols,
-            });
-        }
-    }
+    // The last artifact should be our crate.
+    let Some(name) = artifacts.last().map(|artifact| artifact.name.clone()) else {
+        return Err(Error::UnsupportedCrateType);
+    };
 
+    // Find all binary/dylib/cdylib artifacts, and pick any one.
+    for artifact in artifacts
+        .iter()
+        .filter(|artifact| artifact.name == name)
+        .filter(|artifact| artifact.kind != ArtifactKind::Library)
+    {
+        let section_name = args.symbols_section.as_deref().unwrap_or(".text");
+        return Ok(CrateData {
+            exe_path: Some(prepare_path(&artifact.path)),
+            data: collect_self_data(&artifact.path, section_name)?,
+            std_crates,
+            dep_crates,
+            deps_symbols,
+        });
+    }
     Err(Error::UnsupportedCrateType)
 }
 
